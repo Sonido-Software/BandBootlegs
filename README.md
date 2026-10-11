@@ -8,7 +8,7 @@ individual media can each be shared through an unguessable public link.
 
 ## Stack
 
-- **Backend:** Laravel 13 (PHP 8.4), MariaDB, database queue
+- **Backend:** Laravel 13 (PHP 8.4), PostgreSQL, database queue
 - **Frontend:** Inertia 2 + Vue 3, PrimeVue 4 (Aura theme), Vite
 - **Audio/media:** wavesurfer.js + Web Audio mixer, Uppy uploads
 - **Storage:** Cloudflare R2 (S3-compatible); large files upload direct to the

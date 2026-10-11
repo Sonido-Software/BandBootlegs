@@ -177,7 +177,7 @@ class CollectionController extends Controller
         $q = trim((string) $request->query('q', ''));
 
         $tracks = $request->user()->tracks()
-            ->when($q !== '', fn ($b) => $b->where('original_name', 'like', "%{$q}%"))
+            ->when($q !== '', fn ($b) => $b->whereLike('original_name', "%{$q}%"))
             ->latest()
             ->get(['id', 'original_name', 'duration_seconds'])
             ->map(fn (Track $t) => [
@@ -187,7 +187,7 @@ class CollectionController extends Controller
             ]);
 
         $media = $request->user()->media()
-            ->when($q !== '', fn ($b) => $b->where('original_name', 'like', "%{$q}%"))
+            ->when($q !== '', fn ($b) => $b->whereLike('original_name', "%{$q}%"))
             ->latest()
             ->get()
             ->map(fn (Media $m) => [

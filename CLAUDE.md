@@ -8,7 +8,7 @@ unguessable public link.
 
 ## Environment & commands
 
-This project runs under **ddev** (PHP 8.4, Node 24, MariaDB 11.8). Run tooling
+This project runs under **ddev** (PHP 8.4, Node 24, PostgreSQL 18). Run tooling
 *through* ddev, never bare:
 
 - `ddev artisan …`, `ddev composer …`, `ddev npm …`

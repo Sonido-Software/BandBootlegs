@@ -1,16 +1,17 @@
 name: waves
 type: laravel
-docroot: "public"
+docroot: public
 php_version: "8.4"
 webserver_type: nginx-fpm
 xdebug_enabled: false
 additional_hostnames: []
 additional_fqdns: []
 database:
-    type: mariadb
-    version: "11.8"
+    type: postgres
+    version: "18"
 use_dns_when_possible: true
 composer_version: "2"
+disable_settings_management: true
 web_environment: []
 corepack_enable: false
 
@@ -209,7 +210,7 @@ corepack_enable: false
 # Provide extra flags to the share provider script
 # See https://docs.ddev.com/en/stable/users/configuration/config/#share_provider_args
 
-disable_settings_management: true
+# disable_settings_management: false
 # If true, DDEV will not create CMS-specific settings files like
 # Drupal's settings.php/settings.ddev.php or TYPO3's additional.php
 # In this case the user must provide all such settings.
