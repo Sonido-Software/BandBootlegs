@@ -11,7 +11,7 @@ import Aura from '@primeuix/themes/aura';
 import ToastService from 'primevue/toastservice';
 import ConfirmationService from 'primevue/confirmationservice';
 
-const appName = import.meta.env.VITE_APP_NAME || 'Waves';
+const appName = import.meta.env.VITE_APP_NAME || 'Band Bootlegs';
 
 createInertiaApp({
     title: (title) => `${title} - ${appName}`,

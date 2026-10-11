@@ -1,6 +1,6 @@
-# Waves
+# Band Bootlegs
 
-Waves is a Laravel + Inertia + Vue app for uploading, browsing, and sharing
+Band Bootlegs is a Laravel + Inertia + Vue app for uploading, browsing, and sharing
 audio. Multitrack `.wav` files stream with a per-channel waveform mixer
 (wavesurfer.js + Web Audio), and **events** group tracks and collect the photos
 and videos from a show, rehearsal, or studio session. Tracks, events, and

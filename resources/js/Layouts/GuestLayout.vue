@@ -5,7 +5,7 @@ import Card from 'primevue/card';
 
 <template>
     <div class="guest-shell">
-        <Link href="/" class="brand">Waves</Link>
+        <Link href="/" class="brand">Band Bootlegs</Link>
         <Card class="guest-card">
             <template #content>
                 <slot />

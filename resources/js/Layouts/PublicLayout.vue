@@ -5,7 +5,7 @@ import { Link } from '@inertiajs/vue3';
 <template>
     <div class="public-shell">
         <header class="public-nav">
-            <Link href="/" class="brand">Waves</Link>
+            <Link href="/" class="brand">Band Bootlegs</Link>
             <div v-if="$slots.header" class="public-header-slot">
                 <slot name="header" />
             </div>
