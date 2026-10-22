@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
@@ -14,6 +14,7 @@ import { useToast } from 'primevue/usetoast';
 import ConfirmDialog from 'primevue/confirmdialog';
 import { useConfirm } from 'primevue/useconfirm';
 import { apiFetch } from '@/composables/useS3Upload';
+import AddToCollectionMenu from '@/Components/AddToCollectionMenu.vue';
 
 const props = defineProps({
     collection: { type: Object, required: true },
@@ -151,6 +152,23 @@ const submitAdd = () => {
 // --- Media lightbox ----------------------------------------------------------
 const lightbox = ref(null);
 const openLightbox = (item) => { lightbox.value = item; };
+
+// Prev/next step through the media grid in display order; arrow keys work
+// while the lightbox is open. Escape is handled by the Dialog itself.
+const lightboxIndex = computed(() => lightbox.value ? media.value.findIndex((m) => m.id === lightbox.value.id) : -1);
+const hasPrev = computed(() => lightboxIndex.value > 0);
+const hasNext = computed(() => lightboxIndex.value > -1 && lightboxIndex.value < media.value.length - 1);
+const stepLightbox = (delta) => {
+    const next = media.value[lightboxIndex.value + delta];
+    if (next) openLightbox(next);
+};
+const onLightboxKey = (e) => {
+    if (!lightbox.value || e.target.closest?.('input, textarea')) return;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); stepLightbox(-1); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); stepLightbox(1); }
+};
+onMounted(() => window.addEventListener('keydown', onLightboxKey));
+onUnmounted(() => window.removeEventListener('keydown', onLightboxKey));
 </script>
 
 <template>
@@ -307,9 +325,14 @@ const openLightbox = (item) => { lightbox.value = item; };
         </Dialog>
 
         <!-- Media lightbox -->
-        <Dialog :visible="!!lightbox" modal dismissableMask :showHeader="false" :style="{ width: 'auto', maxWidth: '92vw' }" :class="lightbox?.kind === 'video' ? 'lightbox-video-dialog' : ''" @update:visible="lightbox = null">
+        <Dialog :visible="!!lightbox" modal dismissableMask :showHeader="false" :style="{ width: 'auto', maxWidth: '92vw' }" :class="['lightbox-dialog', lightbox?.kind === 'video' ? 'lightbox-video-dialog' : '']" @update:visible="lightbox = null">
             <template v-if="lightbox">
-                <video v-if="lightbox.kind === 'video'" :src="lightbox.url" controls autoplay class="lightbox-img lightbox-video" />
+                <div v-if="canEdit" class="lightbox-toolbar">
+                    <AddToCollectionMenu type="media" :ids="[lightbox.id]" text rounded severity="secondary" />
+                </div>
+                <Button v-if="hasPrev" class="lightbox-nav lightbox-prev" icon="pi pi-chevron-left" text rounded severity="secondary" aria-label="Previous" @click="stepLightbox(-1)" />
+                <Button v-if="hasNext" class="lightbox-nav lightbox-next" icon="pi pi-chevron-right" text rounded severity="secondary" aria-label="Next" @click="stepLightbox(1)" />
+                <video v-if="lightbox.kind === 'video'" :key="lightbox.id" :src="lightbox.url" controls autoplay class="lightbox-img lightbox-video" />
                 <img v-else :src="lightbox.url" :alt="lightbox.name" class="lightbox-img" />
             </template>
         </Dialog>
@@ -350,6 +373,12 @@ const openLightbox = (item) => { lightbox.value = item; };
 .tile-by { position: absolute; left: 0.35rem; bottom: 0.35rem; right: 0.35rem; font-size: 0.7rem; color: #fff; background: rgba(0,0,0,0.45); border-radius: 5px; padding: 0.1rem 0.35rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lightbox-img { max-width: 90vw; max-height: 85vh; display: block; }
 .lightbox-video { transition: transform 0.2s ease; }
+.lightbox-toolbar { position: absolute; top: 0.75rem; right: 0.75rem; z-index: 10; display: flex; gap: 0.25rem; background: rgba(0, 0, 0, 0.45); border-radius: 999px; padding: 0.15rem; }
+.lightbox-toolbar :deep(.p-button) { color: #fff; }
+.lightbox-nav { position: absolute; top: 50%; transform: translateY(-50%); z-index: 10; color: #fff !important; background: rgba(0, 0, 0, 0.45) !important; }
+.lightbox-prev { left: 0.75rem; }
+.lightbox-next { right: 0.75rem; }
+:global(.lightbox-dialog .p-dialog-content) { position: relative; }
 @media (max-width: 640px) {
     :global(.lightbox-video-dialog) { width: 100vw !important; max-width: 100vw !important; height: 100dvh !important; margin: 0 !important; border-radius: 0 !important; }
     :global(.lightbox-video-dialog .p-dialog-content) { padding: 0 !important; height: 100%; background: #000; display: flex; align-items: center; }

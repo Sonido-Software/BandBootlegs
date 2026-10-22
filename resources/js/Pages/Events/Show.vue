@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
@@ -321,6 +321,23 @@ const lightbox = ref(null);
 const previewRotation = ref(0);
 const openLightbox = (item) => { lightbox.value = item; previewRotation.value = 0; };
 
+// Prev/next step through the media grid in display order; arrow keys work
+// while the lightbox is open. Escape is handled by the Dialog itself.
+const lightboxIndex = computed(() => lightbox.value ? media.value.findIndex((m) => m.id === lightbox.value.id) : -1);
+const hasPrev = computed(() => lightboxIndex.value > 0);
+const hasNext = computed(() => lightboxIndex.value > -1 && lightboxIndex.value < media.value.length - 1);
+const stepLightbox = (delta) => {
+    const next = media.value[lightboxIndex.value + delta];
+    if (next) openLightbox(next);
+};
+const onLightboxKey = (e) => {
+    if (!lightbox.value || e.target.closest?.('input, textarea')) return;
+    if (e.key === 'ArrowLeft') { e.preventDefault(); stepLightbox(-1); }
+    if (e.key === 'ArrowRight') { e.preventDefault(); stepLightbox(1); }
+};
+onMounted(() => window.addEventListener('keydown', onLightboxKey));
+onUnmounted(() => window.removeEventListener('keydown', onLightboxKey));
+
 // Keep a rotated video fitting the viewport by swapping the width/height caps
 // on the quarter-turns.
 const lightboxVideoStyle = computed(() => {
@@ -597,13 +614,18 @@ const rotateVideo = (direction) => {
         </Dialog>
 
         <!-- Image lightbox -->
-        <Dialog :visible="!!lightbox" modal dismissableMask :showHeader="false" :style="{ width: 'auto', maxWidth: '92vw' }" :class="lightbox?.kind === 'video' ? 'lightbox-video-dialog' : ''" @update:visible="lightbox = null">
+        <Dialog :visible="!!lightbox" modal dismissableMask :showHeader="false" :style="{ width: 'auto', maxWidth: '92vw' }" :class="['lightbox-dialog', lightbox?.kind === 'video' ? 'lightbox-video-dialog' : '']" @update:visible="lightbox = null">
             <template v-if="lightbox">
                 <div v-if="canEdit && lightbox.kind === 'video'" class="rotate-toolbar">
                     <Button icon="pi pi-replay" text rounded severity="secondary" aria-label="Rotate left" @click="rotateVideo('ccw')" />
                     <Button icon="pi pi-refresh" text rounded severity="secondary" aria-label="Rotate right" @click="rotateVideo('cw')" />
                 </div>
-                <video v-if="lightbox.kind === 'video'" :src="lightbox.url" :style="lightboxVideoStyle" controls autoplay class="lightbox-img lightbox-video" />
+                <div v-if="canEdit" class="lightbox-toolbar">
+                    <AddToCollectionMenu type="media" :ids="[lightbox.id]" text rounded severity="secondary" />
+                </div>
+                <Button v-if="hasPrev" class="lightbox-nav lightbox-prev" icon="pi pi-chevron-left" text rounded severity="secondary" aria-label="Previous" @click="stepLightbox(-1)" />
+                <Button v-if="hasNext" class="lightbox-nav lightbox-next" icon="pi pi-chevron-right" text rounded severity="secondary" aria-label="Next" @click="stepLightbox(1)" />
+                <video v-if="lightbox.kind === 'video'" :key="lightbox.id" :src="lightbox.url" :style="lightboxVideoStyle" controls autoplay class="lightbox-img lightbox-video" />
                 <img v-else :src="lightbox.url" :alt="lightbox.name" class="lightbox-img" />
             </template>
         </Dialog>
@@ -652,7 +674,12 @@ const rotateVideo = (direction) => {
 .lightbox-video { transition: transform 0.2s ease; }
 .rotate-toolbar { position: absolute; top: 0.75rem; left: 0.75rem; z-index: 10; display: flex; gap: 0.25rem; background: rgba(0, 0, 0, 0.45); border-radius: 999px; padding: 0.15rem; }
 .rotate-toolbar :deep(.p-button) { color: #fff; }
-:global(.lightbox-video-dialog .p-dialog-content) { position: relative; }
+.lightbox-toolbar { position: absolute; top: 0.75rem; right: 0.75rem; z-index: 10; display: flex; gap: 0.25rem; background: rgba(0, 0, 0, 0.45); border-radius: 999px; padding: 0.15rem; }
+.lightbox-toolbar :deep(.p-button) { color: #fff; }
+.lightbox-nav { position: absolute; top: 50%; transform: translateY(-50%); z-index: 10; color: #fff !important; background: rgba(0, 0, 0, 0.45) !important; }
+.lightbox-prev { left: 0.75rem; }
+.lightbox-next { right: 0.75rem; }
+:global(.lightbox-dialog .p-dialog-content) { position: relative; }
 @media (max-width: 640px) {
     :global(.lightbox-video-dialog) { width: 100vw !important; max-width: 100vw !important; height: 100dvh !important; margin: 0 !important; border-radius: 0 !important; }
     :global(.lightbox-video-dialog .p-dialog-content) { padding: 0 !important; height: 100%; background: #000; display: flex; align-items: center; }
