@@ -25,6 +25,34 @@ class MediaController extends Controller
 
     public function __construct(private MediaStorage $storage) {}
 
+    /** Every video the user owns, across events, as a flat sortable list. */
+    public function index(Request $request): Response
+    {
+        $videos = $request->user()
+            ->media()
+            ->where('kind', 'video')
+            ->with('event:id,name')
+            ->latest()
+            ->get()
+            ->map(fn (Media $m) => [
+                'id' => $m->id,
+                'name' => $m->original_name,
+                'kind' => $m->kind,
+                'size' => $m->size,
+                'duration' => $m->duration,
+                // The web rendition exists once TranscodeVideo has finished.
+                'ready' => $m->playback_key !== null,
+                'url' => $this->storage->objectUrl($m->playbackKey(), route('media.stream', $m->id)),
+                'thumb_url' => $this->storage->objectUrl($m->thumb_key, route('media.thumb', $m->id)),
+                'download_url' => route('media.download', $m->id),
+                'event' => $m->event ? ['id' => $m->event->id, 'name' => $m->event->name] : null,
+                'contributor_name' => $m->contributor_name,
+                'created_at' => $m->created_at?->toIso8601String(),
+            ]);
+
+        return Inertia::render('Media/Index', ['videos' => $videos]);
+    }
+
     public function uploadUrl(MediaUploadUrlRequest $request): array
     {
         return $this->storage->uploadTarget(

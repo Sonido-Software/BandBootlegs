@@ -20,6 +20,27 @@ class MediaTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_index_lists_only_the_users_videos(): void
+    {
+        $this->withoutVite();
+        $user = User::factory()->create();
+        $event = Event::factory()->for($user)->create(['name' => 'Spring show']);
+        $mine = Media::factory()->for($user)->video()->create(['event_id' => $event->id, 'original_name' => 'set.mp4']);
+        Media::factory()->for($user)->create(); // image: excluded
+        Media::factory()->video()->create(); // someone else's video
+
+        $this->actingAs($user)
+            ->get(route('media.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Media/Index')
+                ->has('videos', 1)
+                ->where('videos.0.id', $mine->id)
+                ->where('videos.0.name', 'set.mp4')
+                ->where('videos.0.ready', false)
+                ->where('videos.0.event.name', 'Spring show'));
+    }
+
     public function test_upload_url_returns_signed_data_scoped_to_user(): void
     {
         $user = User::factory()->create();

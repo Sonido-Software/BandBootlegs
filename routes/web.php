@@ -160,6 +160,7 @@ Route::middleware('auth')->group(function () {
 
     // Media — photos and videos. Literal upload/multipart routes are declared
     // before the /media/{media} wildcards so they win the match.
+    Route::get('/videos', [MediaController::class, 'index'])->name('media.index');
     Route::post('/media/upload-url', [MediaController::class, 'uploadUrl'])->name('media.upload-url');
     Route::put('/media/upload', [MediaController::class, 'uploadPut'])->middleware('signed')->name('media.upload-put');
     Route::post('/media/multipart', [MediaController::class, 'createMultipart'])->name('media.multipart.create');
