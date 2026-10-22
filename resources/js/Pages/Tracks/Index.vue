@@ -292,7 +292,7 @@ const submitRename = async () => {
                                 <Tag v-else severity="warn" value="Processing" />
                             </template>
                         </Column>
-                        <Column header="Duration">
+                        <Column field="duration_seconds" header="Duration" sortable>
                             <template #body="{ data }">{{ formatDuration(data.duration_seconds) }}</template>
                         </Column>
                         <Column header="Size">
