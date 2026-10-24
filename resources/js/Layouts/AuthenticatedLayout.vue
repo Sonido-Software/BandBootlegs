@@ -29,7 +29,9 @@ const initials = (name) => name?.split(' ').map(w => w[0]).slice(0, 2).join('').
     <div class="app-shell">
         <Menubar :model="navItems" class="app-nav">
             <template #start>
-                <Link :href="route('tracks.index')" class="brand">Band Bootlegs</Link>
+                <Link :href="route('tracks.index')" class="brand">
+            <img class="brand-logo" src="/images/logo.png" alt="Band Bootlegs" />
+        </Link>
             </template>
             <template #end>
                 <Button text @click="(e) => userMenu.toggle(e)" :aria-label="page.props.auth.user.name" aria-haspopup="true" aria-controls="user-menu">
@@ -67,14 +69,9 @@ const initials = (name) => name?.split(' ').map(w => w[0]).slice(0, 2).join('').
     border-right: 0;
     border-top: 0;
 }
-.brand {
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: var(--p-primary-color);
-    text-decoration: none;
-    margin-right: 1.5rem;
-    letter-spacing: -0.02em;
-}
+.brand { display: flex; align-items: center; margin-right: 1.5rem; }
+.brand-logo { height: 2rem; width: auto; display: block; }
+:global(.dark) .brand-logo { content: url('/images/logo-dark.png'); }
 .user-name {
     margin: 0 0.5rem;
     font-weight: 500;

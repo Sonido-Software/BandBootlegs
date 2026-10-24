@@ -5,7 +5,9 @@ import Card from 'primevue/card';
 
 <template>
     <div class="guest-shell">
-        <Link href="/" class="brand">Band Bootlegs</Link>
+        <Link href="/" class="brand">
+            <img class="brand-logo" src="/images/logo.png" alt="Band Bootlegs" />
+        </Link>
         <Card class="guest-card">
             <template #content>
                 <slot />
@@ -24,13 +26,9 @@ import Card from 'primevue/card';
     gap: 1.5rem;
     padding: 2rem 1rem;
 }
-.brand {
-    font-size: 1.75rem;
-    font-weight: 700;
-    color: var(--p-primary-color);
-    text-decoration: none;
-    letter-spacing: -0.02em;
-}
+.brand { display: flex; justify-content: center; }
+.brand-logo { height: 3.5rem; width: auto; display: block; max-width: 100%; }
+:global(.dark) .brand-logo { content: url('/images/logo-dark.png'); }
 .guest-card {
     width: 100%;
     max-width: 28rem;
