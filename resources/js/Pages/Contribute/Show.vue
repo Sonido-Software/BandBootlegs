@@ -100,7 +100,7 @@ const onSelected = (event) => {
                         </div>
 
                         <Button class="pick" icon="pi pi-camera" label="Choose photos or videos" size="large" @click="pickFiles" />
-                        <input ref="fileInput" type="file" accept="image/*,video/*" capture="environment" multiple style="display:none" @change="onSelected" />
+                        <input ref="fileInput" type="file" accept="image/*,video/*" multiple style="display:none" @change="onSelected" />
                     </template>
                 </Card>
 
