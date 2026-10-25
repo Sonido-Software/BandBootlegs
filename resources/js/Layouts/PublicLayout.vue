@@ -37,4 +37,8 @@ import { Link } from '@inertiajs/vue3';
 .public-header-slot { flex: 1; min-width: 0; }
 .page-main { flex: 1; padding: 2rem 0; }
 .container { max-width: 80rem; margin: 0 auto; padding: 0 1.5rem; }
+@media (max-width: 640px) {
+    .page-main { padding: 1.25rem 0; }
+    .container { padding: 0 1rem; }
+}
 </style>

@@ -30,11 +30,11 @@ const initials = (name) => name?.split(' ').map(w => w[0]).slice(0, 2).join('').
         <Menubar :model="navItems" class="app-nav">
             <template #start>
                 <Link :href="route('tracks.index')" class="brand">
-            <img class="brand-logo" src="/images/logo.png" alt="Band Bootlegs" />
-        </Link>
+                    <img class="brand-logo" src="/images/logo.png" alt="Band Bootlegs" />
+                </Link>
             </template>
             <template #end>
-                <Button text @click="(e) => userMenu.toggle(e)" :aria-label="page.props.auth.user.name" aria-haspopup="true" aria-controls="user-menu">
+                <Button text class="user-button" @click="(e) => userMenu.toggle(e)" :aria-label="page.props.auth.user.name" aria-haspopup="true" aria-controls="user-menu">
                     <Avatar :label="initials(page.props.auth.user.name)" shape="circle" />
                     <span class="user-name">{{ page.props.auth.user.name }}</span>
                     <i class="pi pi-chevron-down" />
@@ -69,12 +69,22 @@ const initials = (name) => name?.split(' ').map(w => w[0]).slice(0, 2).join('').
     border-right: 0;
     border-top: 0;
 }
-.brand { display: flex; align-items: center; margin-right: 1.5rem; }
-.brand-logo { height: 2rem; width: auto; display: block; }
+.brand { display: flex; align-items: center; margin-right: 1.5rem; min-width: 0; }
+.brand-logo { height: 2rem; width: auto; max-width: 100%; display: block; }
 :global(.dark) .brand-logo { content: url('/images/logo-dark.png'); }
+/* Keep the bar on one line: start/end must be allowed to shrink, and the name must never wrap. */
+.app-nav :deep(.p-menubar-start) { min-width: 0; }
+.app-nav :deep(.p-menubar-end) { min-width: 0; flex-shrink: 0; }
+.user-button { white-space: nowrap; }
 .user-name {
     margin: 0 0.5rem;
     font-weight: 500;
+}
+@media (max-width: 640px) {
+    .brand { margin-right: 0.75rem; }
+    .brand-logo { height: 1.75rem; }
+    .user-name { display: none; }
+    .user-button { padding-left: 0.5rem; padding-right: 0.5rem; }
 }
 .page-header {
     background: var(--p-surface-0);
@@ -89,5 +99,10 @@ const initials = (name) => name?.split(' ').map(w => w[0]).slice(0, 2).join('').
     max-width: 80rem;
     margin: 0 auto;
     padding: 0 1.5rem;
+}
+@media (max-width: 640px) {
+    .page-header { padding: 1rem 0; }
+    .page-main { padding: 1.25rem 0; }
+    .container { padding: 0 1rem; }
 }
 </style>
