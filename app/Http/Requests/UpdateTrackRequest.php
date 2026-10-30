@@ -24,6 +24,22 @@ class UpdateTrackRequest extends FormRequest
             // array of {level, pan, muted}; entries past the channel count
             // are trimmed in the controller rather than rejected.
             'default_mix' => ['sometimes', 'nullable', 'array'],
+            ...self::mixEntryRules(),
+            // null moves the track out of any event; an id must be an event the
+            // user owns.
+            'event_id' => ['sometimes', 'nullable', 'integer', Rule::exists('events', 'id')->where('user_id', $this->user()->id)],
+        ];
+    }
+
+    /**
+     * Per-channel rules for a `default_mix` array, shared with the
+     * apply-to-event request.
+     *
+     * @return array<string, array<int, string>>
+     */
+    public static function mixEntryRules(): array
+    {
+        return [
             'default_mix.*.level' => ['required_with:default_mix.*', 'numeric', 'between:0,100'],
             'default_mix.*.pan' => ['required_with:default_mix.*', 'numeric', 'between:-100,100'],
             'default_mix.*.muted' => ['required_with:default_mix.*', 'boolean'],
@@ -31,9 +47,6 @@ class UpdateTrackRequest extends FormRequest
             // Per-channel preamp trim in dB. Snapped to 5 dB steps in [0, 20]
             // in the controller; we accept any number in range here.
             'default_mix.*.boost' => ['sometimes', 'numeric', 'between:0,20'],
-            // null moves the track out of any event; an id must be an event the
-            // user owns.
-            'event_id' => ['sometimes', 'nullable', 'integer', Rule::exists('events', 'id')->where('user_id', $this->user()->id)],
         ];
     }
 }

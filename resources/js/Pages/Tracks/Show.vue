@@ -17,6 +17,8 @@ const props = defineProps({
     track: { type: Object, required: true },
     templates: { type: Array, default: () => [] },
     mixSources: { type: Array, default: () => [] },
+    // { name, matching, skipped } when the track belongs to an event.
+    eventSiblings: { type: Object, default: null },
     canEdit: { type: Boolean, default: true },
 });
 
@@ -424,16 +426,18 @@ const mixStatus = ref(''); // '' | 'saving' | 'saved'
 let mixStatusTimer = null;
 const hasDefaultMix = ref(!!props.track.default_mix);
 
+const currentMix = () => levels.value.map((lvl, i) => ({
+    level: lvl,
+    pan: pans.value[i] ?? 0,
+    muted: !!muted.value[i],
+    solo: !!soloed.value[i],
+    boost: boosts.value[i] ?? 0,
+}));
+
 const saveDefaultMix = async () => {
     mixStatus.value = 'saving';
     try {
-        const payload = levels.value.map((lvl, i) => ({
-            level: lvl,
-            pan: pans.value[i] ?? 0,
-            muted: !!muted.value[i],
-            solo: !!soloed.value[i],
-            boost: boosts.value[i] ?? 0,
-        }));
+        const payload = currentMix();
         const res = await apiFetch(route('tracks.update', props.track.id), {
             method: 'PATCH',
             body: { default_mix: payload },
@@ -477,6 +481,51 @@ const applyMixSource = (source) => {
         applyPan(i);
     }
     applyAllGains();
+};
+
+// "Apply to event": copy the live faders (as the default mix) or the channel
+// names onto every same-channel-count track in this track's event, after a
+// confirm since it overwrites what's saved on those tracks.
+const eventApplyKind = ref(null); // null | 'mix' | 'labels'
+const eventApplyError = ref('');
+const eventApplySaving = ref(false);
+const showEventApplyDialog = computed({
+    get: () => eventApplyKind.value !== null,
+    set: (open) => { if (!open) eventApplyKind.value = null; },
+});
+
+const openEventApply = (kind) => {
+    eventApplyError.value = '';
+    eventApplyKind.value = kind;
+};
+
+const applyToEvent = async () => {
+    const kind = eventApplyKind.value;
+    const status = kind === 'mix' ? mixStatus : labelsStatus;
+    eventApplySaving.value = true;
+    eventApplyError.value = '';
+    status.value = 'saving';
+    try {
+        const res = kind === 'mix'
+            ? await apiFetch(route('tracks.default-mix.event', props.track.id), {
+                method: 'POST',
+                body: { default_mix: currentMix() },
+            })
+            : await apiFetch(route('tracks.channel-labels.event', props.track.id), {
+                method: 'POST',
+                body: { channel_labels: labels.value.map((l) => l.trim() || null) },
+            });
+        if (!res.ok) throw new Error(`apply failed (${res.status})`);
+        if (kind === 'mix') hasDefaultMix.value = true;
+        eventApplyKind.value = null;
+        status.value = 'saved';
+        setTimeout(() => { status.value = ''; }, 1500);
+    } catch (e) {
+        status.value = '';
+        eventApplyError.value = 'Couldn\'t apply to the event. Please try again.';
+    } finally {
+        eventApplySaving.value = false;
+    }
 };
 
 const clearDefaultMix = async () => {
@@ -538,6 +587,14 @@ const templatesMenuItems = computed(() => {
         icon: 'pi pi-bookmark',
         command: openSaveTemplate,
     });
+    if (props.eventSiblings) {
+        items.push({
+            label: 'Apply to all tracks in event…',
+            icon: 'pi pi-clone',
+            disabled: !props.eventSiblings.matching,
+            command: () => openEventApply('labels'),
+        });
+    }
     return items;
 });
 
@@ -552,6 +609,14 @@ const defaultMixMenuItems = computed(() => {
             label: 'Clear default mix',
             icon: 'pi pi-times',
             command: clearDefaultMix,
+        });
+    }
+    if (props.eventSiblings) {
+        items.push({
+            label: 'Apply to all tracks in event…',
+            icon: 'pi pi-clone',
+            disabled: !props.eventSiblings.matching,
+            command: () => openEventApply('mix'),
         });
     }
     if (mixSourceList.value.length) {
@@ -1113,6 +1178,10 @@ onBeforeUnmount(() => {
                                             @click.stop.prevent="deleteTemplate(item.template)"
                                         />
                                     </a>
+                                    <a v-else v-bind="itemProps.action">
+                                        <span v-if="item.icon" :class="item.icon" v-bind="itemProps.icon" />
+                                        <span v-bind="itemProps.label">{{ item.label }}</span>
+                                    </a>
                                 </template>
                             </Menu>
                             <Button
@@ -1283,6 +1352,33 @@ onBeforeUnmount(() => {
             <template #footer>
                 <Button label="Cancel" text @click="showCopyMixDialog = false" />
                 <Button label="Apply" icon="pi pi-copy" :disabled="!selectedCopyMixId" @click="confirmCopyMix" />
+            </template>
+        </Dialog>
+
+        <Dialog
+            v-if="canEdit && eventSiblings"
+            v-model:visible="showEventApplyDialog"
+            modal
+            :header="eventApplyKind === 'labels' ? 'Apply channel names to event' : 'Apply mix to event'"
+            :style="{ width: '26rem' }"
+        >
+            <div class="copy-mix-dialog">
+                <p class="copy-mix-hint">
+                    {{ eventApplyKind === 'labels' ? 'Copy these channel names' : 'Save the current faders as the default mix' }}
+                    to {{ eventSiblings.matching }} other {{ eventSiblings.matching === 1 ? 'track' : 'tracks' }}
+                    in <strong>{{ eventSiblings.name }}</strong>.
+                    {{ eventApplyKind === 'labels' ? 'Their current channel names' : 'Any default mix already saved on them' }}
+                    will be replaced.
+                </p>
+                <p v-if="eventSiblings.skipped" class="copy-mix-hint">
+                    {{ eventSiblings.skipped }} {{ eventSiblings.skipped === 1 ? 'track has' : 'tracks have' }}
+                    a different number of channels and will be left alone.
+                </p>
+                <Message v-if="eventApplyError" severity="error" :closable="false">{{ eventApplyError }}</Message>
+            </div>
+            <template #footer>
+                <Button label="Cancel" text @click="showEventApplyDialog = false" />
+                <Button label="Apply" icon="pi pi-clone" :loading="eventApplySaving" @click="applyToEvent" />
             </template>
         </Dialog>
 

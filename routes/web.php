@@ -110,6 +110,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/tracks/{track}/channels/{channel}/stream', [TrackController::class, 'streamChannel'])->whereNumber('channel')->name('tracks.channels.stream');
     Route::get('/tracks/{track}/channels/{channel}/peaks', [TrackController::class, 'peaksChannel'])->whereNumber('channel')->name('tracks.channels.peaks');
     Route::patch('/tracks/{track}', [TrackController::class, 'update'])->name('tracks.update');
+    Route::post('/tracks/{track}/default-mix/event', [TrackController::class, 'applyMixToEvent'])->name('tracks.default-mix.event');
+    Route::post('/tracks/{track}/channel-labels/event', [TrackController::class, 'applyLabelsToEvent'])->name('tracks.channel-labels.event');
 
     // Browser-encoded multi-channel upload: init mints per-channel Opus + peaks
     // PUT targets, the browser uploads to them, then store() finalises the set

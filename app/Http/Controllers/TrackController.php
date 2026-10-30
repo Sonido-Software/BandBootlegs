@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\ApplyLabelsToEventRequest;
+use App\Http\Requests\ApplyMixToEventRequest;
 use App\Http\Requests\StoreTrackRequest;
 use App\Http\Requests\UpdateTrackRequest;
 use App\Models\Track;
 use App\Models\TrackChannel;
 use App\Services\TrackStorage;
 use App\Support\TrackPresenter;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -75,6 +78,9 @@ class TrackController extends Controller
             // Owner's other tracks with a saved default mix and a matching
             // channel count — candidates to "Copy mix from".
             'mixSources' => $this->mixSourcesFor($request, $track),
+            // The track's event and how many of its other tracks an "Apply to
+            // all tracks in event" (mix or channel names) would reach.
+            'eventSiblings' => $this->eventSiblingsFor($request, $track),
             'track' => array_merge(
                 $this->presenter->show(
                     $track,
@@ -140,37 +146,14 @@ class TrackController extends Controller
 
         if (array_key_exists('channel_labels', $data)) {
             // Normalise blank entries to null and drop any beyond the channel count.
-            $channels = (int) $track->channels_count;
-            $changes['channel_labels'] = collect($data['channel_labels'])
-                ->take($channels)
-                ->map(fn ($label) => filled(trim((string) $label)) ? trim((string) $label) : null)
-                ->all();
+            $changes['channel_labels'] = $this->normalizeLabels($data['channel_labels'], (int) $track->channels_count);
         }
 
         if (array_key_exists('default_mix', $data)) {
-            // null clears the saved mix; otherwise trim to the channel count
-            // and coerce types so the client always reads back the same shape
-            // it writes (and shared viewers get something safe to apply).
-            $channels = (int) $track->channels_count;
-            $changes['default_mix'] = $data['default_mix'] === null ? null : collect($data['default_mix'])
-                ->take($channels)
-                ->map(function ($entry) {
-                    // Per-channel preamp trim in dB, snapped to 5 dB steps in
-                    // [0, 20] — there's a real risk of clipping above that, and
-                    // a quiet track usually only needs +5–+15 to put the fader
-                    // back in a useful range.
-                    $boost = (int) round(((float) ($entry['boost'] ?? 0)) / 5) * 5;
-                    $boost = max(0, min(20, $boost));
-
-                    return [
-                        'level' => (int) round(max(0, min(100, (float) $entry['level']))),
-                        'pan' => (int) round(max(-100, min(100, (float) $entry['pan']))),
-                        'muted' => (bool) $entry['muted'],
-                        'solo' => (bool) ($entry['solo'] ?? false),
-                        'boost' => $boost,
-                    ];
-                })
-                ->all();
+            // null clears the saved mix.
+            $changes['default_mix'] = $data['default_mix'] === null
+                ? null
+                : $this->normalizeMix($data['default_mix'], (int) $track->channels_count);
         }
 
         $track->update($changes);
@@ -179,6 +162,36 @@ class TrackController extends Controller
             'name' => $track->original_name,
             'channel_labels' => $track->channel_labels,
             'default_mix' => $track->default_mix,
+        ]);
+    }
+
+    /**
+     * Save one mix as the default on this track and every other track in its
+     * event with the same channel count. Positional mixes don't translate
+     * across different channel layouts, so mismatched tracks are skipped.
+     */
+    public function applyMixToEvent(ApplyMixToEventRequest $request, Track $track): JsonResponse
+    {
+        abort_if($track->event_id === null, 422, 'This track is not in an event.');
+
+        $mix = $this->normalizeMix($request->validated('default_mix'), (int) $track->channels_count);
+
+        return response()->json([
+            'default_mix' => $mix,
+            'updated' => $this->eventTracksMatching($request, $track)->update(['default_mix' => json_encode($mix)]),
+        ]);
+    }
+
+    /** Copy channel names onto this track and its event's same-layout tracks, as applyMixToEvent does for mixes. */
+    public function applyLabelsToEvent(ApplyLabelsToEventRequest $request, Track $track): JsonResponse
+    {
+        abort_if($track->event_id === null, 422, 'This track is not in an event.');
+
+        $labels = $this->normalizeLabels($request->validated('channel_labels'), (int) $track->channels_count);
+
+        return response()->json([
+            'channel_labels' => $labels,
+            'updated' => $this->eventTracksMatching($request, $track)->update(['channel_labels' => json_encode($labels)]),
         ]);
     }
 
@@ -246,6 +259,91 @@ class TrackController extends Controller
                 'name' => $t->original_name,
                 'default_mix' => $t->default_mix,
             ])
+            ->all();
+    }
+
+    /**
+     * The track's event name with counts of its other tracks that share this
+     * track's channel count (`matching`) or don't (`skipped`); null when the
+     * track isn't in an event.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function eventSiblingsFor(Request $request, Track $track): ?array
+    {
+        if ($track->event_id === null) {
+            return null;
+        }
+
+        $siblings = $request->user()
+            ->tracks()
+            ->where('event_id', $track->event_id)
+            ->whereKeyNot($track->id)
+            ->pluck('channels_count');
+
+        $matching = $siblings->filter(fn ($c) => (int) $c === (int) $track->channels_count)->count();
+
+        return [
+            'name' => $track->event?->name,
+            'matching' => $matching,
+            'skipped' => $siblings->count() - $matching,
+        ];
+    }
+
+    /**
+     * The owner's tracks in this track's event (itself included) that share
+     * its channel count — the targets of the apply-to-event actions.
+     */
+    private function eventTracksMatching(Request $request, Track $track): HasMany
+    {
+        return $request->user()
+            ->tracks()
+            ->where('event_id', $track->event_id)
+            ->where('channels_count', (int) $track->channels_count);
+    }
+
+    /**
+     * Blank labels become null and anything past the channel count is dropped.
+     *
+     * @param  array<int, string|null>  $labels
+     * @return array<int, string|null>
+     */
+    private function normalizeLabels(array $labels, int $channels): array
+    {
+        return collect($labels)
+            ->take($channels)
+            ->map(fn ($label) => filled(trim((string) $label)) ? trim((string) $label) : null)
+            ->all();
+    }
+
+    /**
+     * Trim a client mix to the channel count and coerce types so the client
+     * always reads back the same shape it writes (and shared viewers get
+     * something safe to apply).
+     *
+     * @param  array<int, array<string, mixed>>  $mix
+     * @return array<int, array<string, mixed>>
+     */
+    private function normalizeMix(array $mix, int $channels): array
+    {
+        return collect($mix)
+            ->take($channels)
+            ->map(function ($entry) {
+                // Per-channel preamp trim in dB, snapped to 5 dB steps in
+                // [0, 20] — there's a real risk of clipping above that, and
+                // a quiet track usually only needs +5–+15 to put the fader
+                // back in a useful range.
+                $boost = (int) round(((float) ($entry['boost'] ?? 0)) / 5) * 5;
+                $boost = max(0, min(20, $boost));
+
+                return [
+                    'level' => (int) round(max(0, min(100, (float) $entry['level']))),
+                    'pan' => (int) round(max(-100, min(100, (float) $entry['pan']))),
+                    'muted' => (bool) $entry['muted'],
+                    'solo' => (bool) ($entry['solo'] ?? false),
+                    'boost' => $boost,
+                ];
+            })
             ->all();
     }
 

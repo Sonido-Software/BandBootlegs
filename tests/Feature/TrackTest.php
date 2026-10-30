@@ -427,4 +427,62 @@ class TrackTest extends TestCase
 
         Storage::disk('s3')->assertExists($key);
     }
+
+    public function test_apply_labels_to_event_copies_names_to_matching_tracks_in_the_event(): void
+    {
+        $user = User::factory()->create();
+        $event = Event::factory()->for($user)->create();
+        $track = Track::factory()->for($user)->withChannels(2)->create(['event_id' => $event->id]);
+        $sibling = Track::factory()->for($user)->withChannels(2)->create([
+            'event_id' => $event->id,
+            'channel_labels' => ['Old', 'Names'],
+        ]);
+        $otherLayout = Track::factory()->for($user)->withChannels(3)->create(['event_id' => $event->id]);
+        $outsideEvent = Track::factory()->for($user)->withChannels(2)->create();
+
+        $this->actingAs($user)
+            ->postJson(route('tracks.channel-labels.event', $track), ['channel_labels' => [' Kick ', '']])
+            ->assertOk()
+            ->assertJsonPath('updated', 2)
+            ->assertJsonPath('channel_labels', ['Kick', null]);
+
+        $this->assertSame(['Kick', null], $track->fresh()->channel_labels);
+        $this->assertSame(['Kick', null], $sibling->fresh()->channel_labels);
+        $this->assertNull($otherLayout->fresh()->channel_labels);
+        $this->assertNull($outsideEvent->fresh()->channel_labels);
+    }
+
+    public function test_apply_labels_to_event_requires_an_event(): void
+    {
+        $user = User::factory()->create();
+        $track = Track::factory()->for($user)->withChannels()->create();
+
+        $this->actingAs($user)
+            ->postJson(route('tracks.channel-labels.event', $track), ['channel_labels' => ['Vox']])
+            ->assertUnprocessable();
+    }
+
+    public function test_apply_labels_to_event_is_owner_only(): void
+    {
+        $owner = User::factory()->create();
+        $event = Event::factory()->for($owner)->create();
+        $track = Track::factory()->for($owner)->withChannels()->create(['event_id' => $event->id]);
+
+        $this->actingAs(User::factory()->create())
+            ->postJson(route('tracks.channel-labels.event', $track), ['channel_labels' => ['Vox']])
+            ->assertForbidden();
+
+        $this->assertNull($track->fresh()->channel_labels);
+    }
+
+    public function test_apply_labels_to_event_rejects_more_labels_than_channels(): void
+    {
+        $user = User::factory()->create();
+        $event = Event::factory()->for($user)->create();
+        $track = Track::factory()->for($user)->withChannels(1)->create(['event_id' => $event->id]);
+
+        $this->actingAs($user)
+            ->postJson(route('tracks.channel-labels.event', $track), ['channel_labels' => ['A', 'B']])
+            ->assertUnprocessable();
+    }
 }
