@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Track;
 use App\Models\TrackChannel;
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -45,7 +46,7 @@ class TrackChannelTest extends TestCase
         $track = Track::factory()->create();
         TrackChannel::factory()->create(['track_id' => $track->id, 'channel_index' => 0]);
 
-        $this->expectException(\Illuminate\Database\QueryException::class);
+        $this->expectException(QueryException::class);
         TrackChannel::factory()->create(['track_id' => $track->id, 'channel_index' => 0]);
     }
 }

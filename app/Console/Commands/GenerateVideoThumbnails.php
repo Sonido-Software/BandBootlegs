@@ -24,6 +24,7 @@ class GenerateVideoThumbnails extends Command
 
         if ($count === 0) {
             $this->info('No videos to process.');
+
             return;
         }
 

@@ -21,7 +21,7 @@ class TrackPresenter
 
     /**
      * @param  Closure(TrackChannel): string  $channelStreamRoute  local-route fallback for the stream URL of a given channel
-     * @param  Closure(TrackChannel): string  $channelPeaksRoute   local-route fallback for the peaks URL of a given channel
+     * @param  Closure(TrackChannel): string  $channelPeaksRoute  local-route fallback for the peaks URL of a given channel
      * @return array<string, mixed>
      */
     public function show(Track $track, Closure $channelStreamRoute, Closure $channelPeaksRoute, bool $shared): array

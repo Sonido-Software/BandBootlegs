@@ -22,9 +22,7 @@ class EventLinkContext
      * @param  Closure(Media): string  $mediaStream
      * @param  Closure(Media): string  $mediaThumb
      * @param  Closure(Media): string  $mediaDownload
-     * @param  array<string, string>|null  $mediaUploadRoutes  Route URLs the
-     *         browser-driven upload composable needs (uploadUrl, multipart-*,
-     *         cleanup, store). Null when the audience can't upload.
+     * @param  array<string, string>|null  $mediaUploadRoutes  Route URLs the browser-driven upload composable needs (uploadUrl, multipart-*, cleanup, store); null when the audience can't upload.
      */
     public function __construct(
         public readonly bool $shared,
