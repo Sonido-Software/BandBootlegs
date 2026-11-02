@@ -25,6 +25,10 @@ const props = defineProps({
     kind: { type: String, required: true }, // 'video' | 'image'
     items: { type: Array, required: true },
     unfiled: { type: Boolean, default: false },
+    // Videos only: the server pages and sorts the table.
+    sort: { type: String, default: null },
+    dir: { type: String, default: 'desc' },
+    pagination: { type: Object, default: null }, // { page, perPage, total }
 });
 
 const isVideo = computed(() => props.kind === 'video');
@@ -96,22 +100,24 @@ const onSelected = (event) => {
 
 useNewActions({ media: addFiles });
 
+// --- Paging and sorting (videos) ---------------------------------------------
+// The table runs in lazy mode: each page or sort change asks the server for
+// that page, so sorting covers every video rather than the rows on screen.
+const visit = (params) => router.get(route('media.index'), {
+    ...(props.unfiled ? { unfiled: 1 } : {}),
+    ...params,
+}, { preserveState: true, preserveScroll: true, only: ['items', 'pagination', 'sort', 'dir'] });
+
+const sortParams = () => props.sort ? { sort: props.sort, dir: props.dir } : {};
+
+const onPage = (e) => visit({ ...sortParams(), page: e.page + 1 });
+
+// A new sort starts again from page one; removableSort's third click clears it.
+const onSort = (e) => visit(e.sortField ? { sort: e.sortField, dir: e.sortOrder === 1 ? 'asc' : 'desc' } : {});
+
 // --- Lightbox ---------------------------------------------------------------
-// Prev/next follow the table's current sort order so stepping matches what
-// the user sees; DataTable's @sort hands us the sorted rows.
-const sortedRows = ref(null);
-const rows = computed(() => sortedRows.value ?? props.items);
-const onSort = (e) => {
-    if (!e.sortField) { sortedRows.value = null; return; }
-    const dir = e.sortOrder;
-    sortedRows.value = [...props.items].sort((a, b) => {
-        const av = a[e.sortField], bv = b[e.sortField];
-        if (av == null && bv == null) return 0;
-        if (av == null) return 1;
-        if (bv == null) return -1;
-        return (av < bv ? -1 : av > bv ? 1 : 0) * dir;
-    });
-};
+// Prev/next step through the rows on screen, in the order the server sent them.
+const rows = computed(() => props.items);
 
 const lightbox = ref(null);
 const openLightbox = (item) => { lightbox.value = item; };
@@ -170,7 +176,23 @@ onUnmounted(() => window.removeEventListener('keydown', onLightboxKey));
 
             <Card v-else-if="isVideo">
                 <template #content>
-                    <DataTable :value="items" data-key="id" stripedRows removableSort @sort="onSort">
+                    <DataTable
+                        :value="items"
+                        data-key="id"
+                        stripedRows
+                        removableSort
+                        lazy
+                        :paginator="pagination.total > pagination.perPage"
+                        :rows="pagination.perPage"
+                        :totalRecords="pagination.total"
+                        :first="(pagination.page - 1) * pagination.perPage"
+                        :sortField="sort"
+                        :sortOrder="sort ? (dir === 'asc' ? 1 : -1) : null"
+                        paginatorTemplate="PrevPageLink PageLinks NextPageLink CurrentPageReport"
+                        currentPageReportTemplate="{first}–{last} of {totalRecords}"
+                        @page="onPage"
+                        @sort="onSort"
+                    >
                         <Column header="" style="width: 5rem">
                             <template #body="{ data }">
                                 <button class="thumb-btn" :aria-label="`Play ${data.name}`" @click="openLightbox(data)">

@@ -37,21 +37,50 @@ class MediaController extends Controller
         return $this->library($request, 'image');
     }
 
+    /** Videos per page in the Library's Videos table. */
+    private const VIDEOS_PER_PAGE = 25;
+
+    /** Sortable Videos columns: the table's field name => the database column. */
+    private const VIDEO_SORTS = [
+        'name' => 'original_name',
+        'duration' => 'duration',
+        'size' => 'size',
+        'created_at' => 'created_at',
+    ];
+
     /**
      * The Library's photo and video tabs. `?unfiled=1` narrows to items that
-     * aren't in an event, so loose uploads have somewhere to be found.
+     * aren't in an event, so loose uploads have somewhere to be found. Videos
+     * are paginated and sorted here, so a sort covers every page, not just the
+     * one on screen; photos are still one grid.
      */
     private function library(Request $request, string $kind): Response
     {
         $unfiled = $request->boolean('unfiled');
+        $sort = $kind === 'video' && array_key_exists($request->query('sort'), self::VIDEO_SORTS)
+            ? $request->query('sort')
+            : null;
+        $dir = $request->query('dir') === 'asc' ? 'asc' : 'desc';
 
-        $items = $request->user()
+        $query = $request->user()
             ->media()
             ->where('kind', $kind)
             ->when($unfiled, fn ($q) => $q->whereNull('event_id'))
-            ->with('event:id,name')
-            ->latest()
-            ->get()
+            ->with('event:id,name');
+
+        if ($sort) {
+            // Column and direction are both whitelisted above. Missing values
+            // (a duration not probed yet) sink to the end either way.
+            $query->orderByRaw(self::VIDEO_SORTS[$sort]." {$dir} nulls last")->orderByDesc('id');
+        } else {
+            $query->latest()->orderByDesc('id');
+        }
+
+        $page = $kind === 'video'
+            ? $query->paginate(self::VIDEOS_PER_PAGE)->withQueryString()
+            : null;
+
+        $items = ($page ? $page->getCollection() : $query->get())
             ->map(fn (Media $m) => [
                 'id' => $m->id,
                 'name' => $m->original_name,
@@ -66,12 +95,20 @@ class MediaController extends Controller
                 'event' => $m->event ? ['id' => $m->event->id, 'name' => $m->event->name] : null,
                 'contributor_name' => $m->contributor_name,
                 'created_at' => $m->created_at?->toIso8601String(),
-            ]);
+            ])
+            ->values();
 
         return Inertia::render('Media/Index', [
             'kind' => $kind,
             'items' => $items,
             'unfiled' => $unfiled,
+            'sort' => $sort,
+            'dir' => $dir,
+            'pagination' => $page ? [
+                'page' => $page->currentPage(),
+                'perPage' => $page->perPage(),
+                'total' => $page->total(),
+            ] : null,
         ]);
     }
 

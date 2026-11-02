@@ -42,6 +42,58 @@ class MediaTest extends TestCase
                 ->where('items.0.event.name', 'Spring show'));
     }
 
+    public function test_videos_are_paginated_25_per_page(): void
+    {
+        $this->withoutVite();
+        $user = User::factory()->create();
+        Media::factory()->for($user)->video()->count(30)->create();
+
+        $this->actingAs($user)
+            ->get(route('media.index', ['page' => 2]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('items', 5)
+                ->where('pagination.page', 2)
+                ->where('pagination.perPage', 25)
+                ->where('pagination.total', 30));
+    }
+
+    public function test_videos_sort_across_every_page_with_missing_values_last(): void
+    {
+        $this->withoutVite();
+        $user = User::factory()->create();
+        Media::factory()->for($user)->video()->create(['original_name' => 'b.mp4', 'duration' => 30]);
+        Media::factory()->for($user)->video()->create(['original_name' => 'c.mp4', 'duration' => null]);
+        Media::factory()->for($user)->video()->create(['original_name' => 'a.mp4', 'duration' => 90]);
+
+        $this->actingAs($user)
+            ->get(route('media.index', ['sort' => 'name', 'dir' => 'asc']))
+            ->assertInertia(fn ($page) => $page
+                ->where('sort', 'name')
+                ->where('dir', 'asc')
+                ->where('items.0.name', 'a.mp4')
+                ->where('items.2.name', 'c.mp4'));
+
+        $this->actingAs($user)
+            ->get(route('media.index', ['sort' => 'duration', 'dir' => 'desc']))
+            ->assertInertia(fn ($page) => $page
+                ->where('items.0.name', 'a.mp4')
+                ->where('items.1.name', 'b.mp4')
+                ->where('items.2.name', 'c.mp4'));
+    }
+
+    public function test_videos_ignore_an_unknown_sort_column(): void
+    {
+        $this->withoutVite();
+        $user = User::factory()->create();
+        Media::factory()->for($user)->video()->create();
+
+        $this->actingAs($user)
+            ->get(route('media.index', ['sort' => 'id; drop table media', 'dir' => 'asc']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('sort', null)->has('items', 1));
+    }
+
     public function test_photos_lists_only_the_users_images(): void
     {
         $this->withoutVite();
