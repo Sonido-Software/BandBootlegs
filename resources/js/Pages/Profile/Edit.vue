@@ -28,7 +28,7 @@ defineProps({
                     <UpdateProfileInformationForm :must-verify-email="mustVerifyEmail" :status="status" />
                 </template>
             </Card>
-            <Card>
+            <Card id="public-page">
                 <template #content>
                     <ShareEventsForm :share-url="shareUrl" />
                 </template>

@@ -1,5 +1,11 @@
 <script setup>
 import { Link } from '@inertiajs/vue3';
+import Breadcrumbs from '@/Components/Breadcrumbs.vue';
+
+defineProps({
+    // Parents within the shared scope (profile → event → track), [{ label, href }].
+    breadcrumbs: { type: Array, default: () => [] },
+});
 </script>
 
 <template>
@@ -15,6 +21,7 @@ import { Link } from '@inertiajs/vue3';
 
         <main class="page-main">
             <div class="container">
+                <Breadcrumbs :items="breadcrumbs" class="public-crumbs" />
                 <slot />
             </div>
         </main>
@@ -36,6 +43,7 @@ import { Link } from '@inertiajs/vue3';
 :global(.dark) .brand-logo { content: url('/images/logo-dark.png'); }
 .public-header-slot { flex: 1; min-width: 0; }
 .page-main { flex: 1; padding: 2rem 0; }
+.public-crumbs { margin-bottom: 1rem; }
 .container { max-width: 80rem; margin: 0 auto; padding: 0 1.5rem; }
 @media (max-width: 640px) {
     .page-main { padding: 1.25rem 0; }

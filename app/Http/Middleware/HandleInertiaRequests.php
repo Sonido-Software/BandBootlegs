@@ -33,6 +33,10 @@ class HandleInertiaRequests extends Middleware
             ...parent::share($request),
             'auth' => [
                 'user' => $request->user(),
+                // The user menu links here; share_token itself stays hidden on the model.
+                'publicPageUrl' => $request->user()?->share_token
+                    ? route('profile.shared', $request->user()->share_token)
+                    : null,
             ],
         ];
     }

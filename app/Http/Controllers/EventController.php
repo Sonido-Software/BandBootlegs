@@ -79,6 +79,7 @@ class EventController extends Controller
 
         return Inertia::render('Events/Show', [
             'canEdit' => true,
+            'breadcrumbs' => [['label' => 'Events', 'href' => route('events.index')]],
             'types' => Event::TYPES,
             'assignableTracks' => $request->user()
                 ->tracks()
@@ -203,6 +204,7 @@ class EventController extends Controller
 
         return Inertia::render('Tracks/Show', [
             'canEdit' => false,
+            'breadcrumbs' => [['label' => $event->name, 'href' => route('events.shared', $event->share_token)]],
             'templates' => [],
             'track' => $this->trackPresenter->show(
                 $track,

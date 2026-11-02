@@ -19,6 +19,8 @@ import { useConfirm } from 'primevue/useconfirm';
 import SplitBeforeUploadDialog from '@/Components/SplitBeforeUploadDialog.vue';
 import StitchedSplitDialog from '@/Components/StitchedSplitDialog.vue';
 import AddToCollectionMenu from '@/Components/AddToCollectionMenu.vue';
+import LibraryTabs from '@/Components/LibraryTabs.vue';
+import { useNewActions } from '@/lib/newActions';
 import { useSplitBeforeUpload } from '@/composables/useSplitBeforeUpload.js';
 import { useStitchedSplit } from '@/composables/useStitchedSplit.js';
 import { useChannelUpload } from '@/composables/useChannelUpload.js';
@@ -27,6 +29,7 @@ import { isOpusEncodeSupported } from '@/lib/opusEncode.js';
 defineProps({
     tracks: { type: Array, required: true },
     events: { type: Array, default: () => [] },
+    unfiled: { type: Boolean, default: false },
 });
 
 // Assign (or clear, when eventId is null) a track's event, then refresh the
@@ -157,6 +160,9 @@ const pickStitched = () => stitchedInput.value?.click();
 const onStitchedSelected = (event) => {
     const files = Array.from(event.target.files || []);
     event.target.value = '';
+    stitchFiles(files);
+};
+const stitchFiles = (files) => {
     if (files.length < 2) {
         toast.add({ severity: 'warn', summary: 'Pick multiple files', detail: 'Select two or more WAV files to stitch and split.', life: 4000 });
         return;
@@ -173,6 +179,12 @@ const onStitchedSelected = (event) => {
     }
     openStitchedSplit(files);
 };
+
+// "+ New" track picks made here (or stashed on the way here) land unfiled.
+useNewActions({
+    tracks: (files) => files.forEach(addUpload),
+    stitch: stitchFiles,
+});
 
 const confirmDelete = (track) => {
     confirm.require({
@@ -225,7 +237,7 @@ const submitRename = async () => {
 </script>
 
 <template>
-    <Head title="Tracks" />
+    <Head title="Library · Tracks" />
     <Toast />
     <ConfirmDialog />
     <SplitBeforeUploadDialog
@@ -244,7 +256,7 @@ const submitRename = async () => {
     <AuthenticatedLayout>
         <template #header>
             <div class="header-row">
-                <h2 class="page-title">Tracks</h2>
+                <h2 class="page-title">Library</h2>
                 <div class="header-actions">
                     <Button icon="pi pi-upload" label="Upload .wav" @click="pickFile" />
                     <Button icon="pi pi-objects-column" label="Stitch & split" severity="secondary" outlined @click="pickStitched" />
@@ -252,6 +264,7 @@ const submitRename = async () => {
                 <input ref="fileInput" type="file" accept=".wav,audio/wav" multiple style="display:none" @change="onFileSelected" />
                 <input ref="stitchedInput" type="file" accept=".wav,audio/wav" multiple style="display:none" @change="onStitchedSelected" />
             </div>
+            <LibraryTabs current="tracks" :unfiled="unfiled" class="library-tabs" />
         </template>
 
         <div class="stack">
@@ -271,7 +284,8 @@ const submitRename = async () => {
             </Card>
 
             <Message v-if="!tracks.length" severity="info" :closable="false">
-                No tracks yet. Click "Upload .wav" to add one.
+                <template v-if="unfiled">Every track is in an event.</template>
+                <template v-else>No tracks yet. Click "Upload .wav" to add one.</template>
             </Message>
 
             <Card v-else>
@@ -284,21 +298,37 @@ const submitRename = async () => {
                         <Column header="Name">
                             <template #body="{ data }">
                                 <Link :href="route('tracks.show', data.id)" class="track-link">{{ data.name }}</Link>
+                                <!-- Phones fold the hidden columns into the row itself. -->
+                                <div class="row-meta sm-only">
+                                    <span>{{ formatDuration(data.duration_seconds) }}</span>
+                                    <Tag v-if="!data.ready" severity="warn" value="Processing" />
+                                </div>
+                                <Select
+                                    :modelValue="data.event_id"
+                                    :options="events"
+                                    optionLabel="name"
+                                    optionValue="id"
+                                    placeholder="Not in an event"
+                                    showClear
+                                    size="small"
+                                    class="event-select sm-only"
+                                    @update:modelValue="(val) => assignEvent(data, val)"
+                                />
                             </template>
                         </Column>
-                        <Column header="Status">
+                        <Column header="Status" headerClass="lg-only" bodyClass="lg-only">
                             <template #body="{ data }">
                                 <Tag v-if="data.ready" severity="success" value="Ready" />
                                 <Tag v-else severity="warn" value="Processing" />
                             </template>
                         </Column>
-                        <Column field="duration_seconds" header="Duration" sortable>
+                        <Column field="duration_seconds" header="Duration" sortable headerClass="lg-only" bodyClass="lg-only">
                             <template #body="{ data }">{{ formatDuration(data.duration_seconds) }}</template>
                         </Column>
-                        <Column header="Size">
+                        <Column header="Size" headerClass="lg-only" bodyClass="lg-only">
                             <template #body="{ data }">{{ formatBytes(data.size) }}</template>
                         </Column>
-                        <Column header="Event" style="width: 14rem">
+                        <Column header="Event" style="width: 14rem" headerClass="lg-only" bodyClass="lg-only">
                             <template #body="{ data }">
                                 <Select
                                     :modelValue="data.event_id"
@@ -313,7 +343,7 @@ const submitRename = async () => {
                                 />
                             </template>
                         </Column>
-                        <Column header="" style="width: 14rem; text-align: right">
+                        <Column header="" style="width: 14rem; text-align: right" bodyClass="actions-cell">
                             <template #body="{ data }">
                                 <AddToCollectionMenu type="track" :ids="[data.id]" text rounded severity="secondary" />
                                 <Button icon="pi pi-pencil" severity="secondary" text rounded aria-label="Rename" @click="openRename(data)" />
@@ -339,8 +369,17 @@ const submitRename = async () => {
 </template>
 
 <style scoped>
-.header-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
-.header-actions { display: flex; gap: 0.5rem; }
+.header-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+.header-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.library-tabs { margin-top: 1rem; }
+.sm-only { display: none; }
+.row-meta { align-items: center; gap: 0.5rem; margin-top: 0.2rem; font-size: 0.8rem; color: var(--p-text-muted-color); font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+    :deep(.lg-only) { display: none; }
+    .row-meta.sm-only { display: flex; }
+    .event-select.sm-only { display: flex; margin-top: 0.4rem; }
+    :deep(.actions-cell) { width: auto !important; white-space: nowrap; }
+}
 .page-title { font-size: 1.25rem; font-weight: 600; margin: 0; }
 .stack { display: flex; flex-direction: column; gap: 1.5rem; }
 .upload-list { display: flex; flex-direction: column; gap: 0.875rem; }

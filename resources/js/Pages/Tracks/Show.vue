@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue';
-import { Head, Link, router } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout.vue';
 import PublicLayout from '@/Layouts/PublicLayout.vue';
 import Button from 'primevue/button';
@@ -20,6 +20,7 @@ const props = defineProps({
     // { name, matching, skipped } when the track belongs to an event.
     eventSiblings: { type: Object, default: null },
     canEdit: { type: Boolean, default: true },
+    breadcrumbs: { type: Array, default: () => [] },
 });
 
 // Owners get the app chrome; public share links render under a guest layout.
@@ -1032,13 +1033,14 @@ onBeforeUnmount(() => {
 <template>
     <Head :title="trackName" />
 
-    <component :is="Layout">
+    <!-- A track in an event lives under Events; a loose one under Library. -->
+    <component
+        :is="Layout"
+        :breadcrumbs="breadcrumbs"
+        v-bind="canEdit ? { immersive: true, section: breadcrumbs.length > 1 ? 'events' : 'library' } : {}"
+    >
         <template #header>
             <div class="header-row">
-                <Link v-if="canEdit" :href="route('tracks.index')" class="back-link">
-                    <i class="pi pi-arrow-left" />
-                    <span>Tracks</span>
-                </Link>
                 <div v-if="canEdit" class="title-field">
                     <input
                         v-model="trackName"
@@ -1426,8 +1428,6 @@ onBeforeUnmount(() => {
     border-color: var(--p-primary-color);
     box-shadow: 0 0 0 2px color-mix(in srgb, var(--p-primary-color) 25%, transparent);
 }
-.back-link { display: inline-flex; align-items: center; gap: 0.375rem; color: var(--p-text-muted-color); text-decoration: none; font-size: 0.875rem; }
-.back-link:hover { color: var(--p-text-color); }
 .stack { display: flex; flex-direction: column; gap: 1.5rem; }
 
 .waveform-wrap { position: relative; }

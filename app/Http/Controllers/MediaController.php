@@ -28,9 +28,27 @@ class MediaController extends Controller
     /** Every video the user owns, across events, as a flat sortable list. */
     public function index(Request $request): Response
     {
-        $videos = $request->user()
+        return $this->library($request, 'video');
+    }
+
+    /** Every photo the user owns, across events, as a grid. */
+    public function photos(Request $request): Response
+    {
+        return $this->library($request, 'image');
+    }
+
+    /**
+     * The Library's photo and video tabs. `?unfiled=1` narrows to items that
+     * aren't in an event, so loose uploads have somewhere to be found.
+     */
+    private function library(Request $request, string $kind): Response
+    {
+        $unfiled = $request->boolean('unfiled');
+
+        $items = $request->user()
             ->media()
-            ->where('kind', 'video')
+            ->where('kind', $kind)
+            ->when($unfiled, fn ($q) => $q->whereNull('event_id'))
             ->with('event:id,name')
             ->latest()
             ->get()
@@ -40,8 +58,8 @@ class MediaController extends Controller
                 'kind' => $m->kind,
                 'size' => $m->size,
                 'duration' => $m->duration,
-                // The web rendition exists once TranscodeVideo has finished.
-                'ready' => $m->playback_key !== null,
+                // Videos are playable once TranscodeVideo has finished; images are ready on upload.
+                'ready' => $m->kind !== 'video' || $m->playback_key !== null,
                 'url' => $this->storage->objectUrl($m->playbackKey(), route('media.stream', $m->id)),
                 'thumb_url' => $this->storage->objectUrl($m->thumb_key, route('media.thumb', $m->id)),
                 'download_url' => route('media.download', $m->id),
@@ -50,7 +68,11 @@ class MediaController extends Controller
                 'created_at' => $m->created_at?->toIso8601String(),
             ]);
 
-        return Inertia::render('Media/Index', ['videos' => $videos]);
+        return Inertia::render('Media/Index', [
+            'kind' => $kind,
+            'items' => $items,
+            'unfiled' => $unfiled,
+        ]);
     }
 
     public function uploadUrl(MediaUploadUrlRequest $request): array

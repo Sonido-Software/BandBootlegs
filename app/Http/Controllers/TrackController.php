@@ -32,8 +32,12 @@ class TrackController extends Controller
 
     public function index(Request $request): Response
     {
+        // `?unfiled=1` narrows the Library to tracks that aren't in an event.
+        $unfiled = $request->boolean('unfiled');
+
         $tracks = $request->user()
             ->tracks()
+            ->when($unfiled, fn ($q) => $q->whereNull('event_id'))
             ->with('event:id,name')
             // select() must come before withExists() — withExists appends its
             // subquery column via addSelect, and a later explicit select()
@@ -56,6 +60,7 @@ class TrackController extends Controller
 
         return Inertia::render('Tracks/Index', [
             'tracks' => $tracks,
+            'unfiled' => $unfiled,
             'events' => $request->user()
                 ->events()
                 ->latest()
@@ -67,10 +72,18 @@ class TrackController extends Controller
     public function show(Request $request, Track $track): Response
     {
         $this->authorize('view', $track);
-        $track->load('channels');
+        $track->load('channels', 'event:id,name');
 
         return Inertia::render('Tracks/Show', [
             'canEdit' => true,
+            // Parents follow the data, not how the user got here: a track in an
+            // event sits under that event wherever it was opened from.
+            'breadcrumbs' => $track->event
+                ? [
+                    ['label' => 'Events', 'href' => route('events.index')],
+                    ['label' => $track->event->name, 'href' => route('events.show', $track->event->id)],
+                ]
+                : [['label' => 'Library', 'href' => route('tracks.index')]],
             'templates' => $request->user()
                 ->channelTemplates()
                 ->latest()

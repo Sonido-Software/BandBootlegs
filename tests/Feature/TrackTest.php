@@ -39,6 +39,46 @@ class TrackTest extends TestCase
             );
     }
 
+    public function test_index_can_be_narrowed_to_tracks_not_in_an_event(): void
+    {
+        $user = User::factory()->create();
+        $event = Event::factory()->for($user)->create();
+        Track::factory()->for($user)->create(['event_id' => $event->id]);
+        $loose = Track::factory()->for($user)->create();
+
+        $this->actingAs($user)
+            ->get('/tracks?unfiled=1')
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('unfiled', true)
+                ->has('tracks', 1)
+                ->where('tracks.0.id', $loose->id)
+            );
+    }
+
+    public function test_show_breadcrumbs_lead_to_the_tracks_event(): void
+    {
+        $user = User::factory()->create();
+        $event = Event::factory()->for($user)->create(['name' => 'Fall show']);
+        $inEvent = Track::factory()->for($user)->create(['event_id' => $event->id]);
+        $loose = Track::factory()->for($user)->create();
+
+        $this->actingAs($user)
+            ->get(route('tracks.show', $inEvent))
+            ->assertInertia(fn ($page) => $page
+                ->has('breadcrumbs', 2)
+                ->where('breadcrumbs.1.label', 'Fall show')
+                ->where('breadcrumbs.1.href', route('events.show', $event->id))
+            );
+
+        $this->actingAs($user)
+            ->get(route('tracks.show', $loose))
+            ->assertInertia(fn ($page) => $page
+                ->has('breadcrumbs', 1)
+                ->where('breadcrumbs.0.href', route('tracks.index'))
+            );
+    }
+
     public function test_index_marks_a_track_with_channels_as_ready(): void
     {
         $user = User::factory()->create();

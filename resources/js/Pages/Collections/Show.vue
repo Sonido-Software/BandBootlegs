@@ -9,6 +9,7 @@ import Tag from 'primevue/tag';
 import Dialog from 'primevue/dialog';
 import InputText from 'primevue/inputtext';
 import Textarea from 'primevue/textarea';
+import Menu from 'primevue/menu';
 import Toast from 'primevue/toast';
 import { useToast } from 'primevue/usetoast';
 import ConfirmDialog from 'primevue/confirmdialog';
@@ -19,6 +20,7 @@ import AddToCollectionMenu from '@/Components/AddToCollectionMenu.vue';
 const props = defineProps({
     collection: { type: Object, required: true },
     canEdit: { type: Boolean, default: true },
+    breadcrumbs: { type: Array, default: () => [] },
 });
 
 // Owners get the app chrome; public share links render under a guest layout.
@@ -82,6 +84,19 @@ const unshare = async () => {
     const res = await apiFetch(route('collections.unshare', props.collection.id), { method: 'DELETE' });
     if (res.ok) { shareUrl.value = null; toast.add({ severity: 'info', summary: 'Sharing disabled', life: 2500 }); }
 };
+
+// One share button and one overflow in the header; the rest live in menus.
+const shareMenu = ref(null);
+const shareMenuItems = [
+    { label: 'Copy link', icon: 'pi pi-copy', command: () => copyShare() },
+    { separator: true },
+    { label: 'Stop sharing', icon: 'pi pi-times', command: () => unshare() },
+];
+const moreMenu = ref(null);
+const moreMenuItems = [
+    { label: 'Edit collection', icon: 'pi pi-pencil', command: () => { showEdit.value = true; } },
+    { label: 'Delete collection', icon: 'pi pi-trash', class: 'menu-danger', command: () => confirmDelete() },
+];
 
 // --- Removing items (detach; the underlying item survives) --------------------
 const removeItem = (type, id) => router.delete(route('collections.items.detach', props.collection.id), {
@@ -175,7 +190,7 @@ onUnmounted(() => window.removeEventListener('keydown', onLightboxKey));
     <Head :title="collection.name" />
     <Toast />
     <ConfirmDialog v-if="canEdit" />
-    <component :is="Layout">
+    <component :is="Layout" :breadcrumbs="breadcrumbs">
         <template #header>
             <div class="header">
                 <div class="title-block">
@@ -186,12 +201,12 @@ onUnmounted(() => window.removeEventListener('keydown', onLightboxKey));
                     </div>
                 </div>
                 <div v-if="canEdit" class="actions">
-                    <Button icon="pi pi-plus" label="Add items" size="small" @click="openAdd" />
-                    <Button v-if="shareUrl" icon="pi pi-copy" label="Copy link" severity="secondary" @click="copyShare" />
-                    <Button icon="pi pi-share-alt" :label="shareUrl ? 'Shared' : 'Share'" :severity="shareUrl ? 'success' : 'secondary'" outlined @click="share" />
-                    <Button v-if="shareUrl" icon="pi pi-times" severity="secondary" text rounded aria-label="Stop sharing" @click="unshare" />
-                    <Button icon="pi pi-pencil" severity="secondary" text rounded aria-label="Edit collection" @click="showEdit = true" />
-                    <Button icon="pi pi-trash" severity="danger" text rounded aria-label="Delete collection" @click="confirmDelete" />
+                    <Button icon="pi pi-plus" label="Add items" @click="openAdd" />
+                    <Button v-if="shareUrl" icon="pi pi-chevron-down" iconPos="right" label="Shared" severity="success" outlined aria-haspopup="true" @click="(e) => shareMenu.toggle(e)" />
+                    <Button v-else icon="pi pi-share-alt" label="Share" severity="secondary" outlined @click="share" />
+                    <Menu ref="shareMenu" :model="shareMenuItems" :popup="true" />
+                    <Button icon="pi pi-ellipsis-v" severity="secondary" text rounded aria-label="More actions" aria-haspopup="true" @click="(e) => moreMenu.toggle(e)" />
+                    <Menu ref="moreMenu" :model="moreMenuItems" :popup="true" />
                 </div>
             </div>
         </template>
@@ -345,6 +360,8 @@ onUnmounted(() => window.removeEventListener('keydown', onLightboxKey));
 .summary { display: flex; align-items: center; flex-wrap: wrap; gap: 1.1rem; margin-top: 0.5rem; font-size: 0.85rem; color: var(--p-text-muted-color); }
 .summary i { margin-right: 0.3rem; }
 .actions { display: flex; align-items: center; gap: 0.4rem; }
+/* Popup menus are teleported to <body>, outside this scope. */
+:global(.menu-danger .p-menu-item-label), :global(.menu-danger .p-menu-item-icon) { color: var(--p-red-500); }
 .stack { display: flex; flex-direction: column; gap: 2rem; }
 .description { margin: 0; white-space: pre-wrap; color: var(--p-text-color); }
 .section-head { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }

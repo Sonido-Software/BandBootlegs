@@ -82,6 +82,7 @@ class CollectionController extends Controller
 
         return Inertia::render('Collections/Show', [
             'canEdit' => true,
+            'breadcrumbs' => [['label' => 'Collections', 'href' => route('collections.index')]],
             'collection' => $this->presenter->collection($collection, CollectionLinkContext::owner($collection)),
         ]);
     }
@@ -231,6 +232,7 @@ class CollectionController extends Controller
 
         return Inertia::render('Tracks/Show', [
             'canEdit' => false,
+            'breadcrumbs' => [['label' => $collection->name, 'href' => route('collections.shared', $collection->share_token)]],
             'templates' => [],
             'track' => $this->trackPresenter->show(
                 $track,

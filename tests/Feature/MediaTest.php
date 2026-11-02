@@ -34,11 +34,48 @@ class MediaTest extends TestCase
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('Media/Index')
-                ->has('videos', 1)
-                ->where('videos.0.id', $mine->id)
-                ->where('videos.0.name', 'set.mp4')
-                ->where('videos.0.ready', false)
-                ->where('videos.0.event.name', 'Spring show'));
+                ->where('kind', 'video')
+                ->has('items', 1)
+                ->where('items.0.id', $mine->id)
+                ->where('items.0.name', 'set.mp4')
+                ->where('items.0.ready', false)
+                ->where('items.0.event.name', 'Spring show'));
+    }
+
+    public function test_photos_lists_only_the_users_images(): void
+    {
+        $this->withoutVite();
+        $user = User::factory()->create();
+        $mine = Media::factory()->for($user)->create(['original_name' => 'crowd.jpg']);
+        Media::factory()->for($user)->video()->create(); // video: excluded
+        Media::factory()->create(); // someone else's image
+
+        $this->actingAs($user)
+            ->get(route('media.photos'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('Media/Index')
+                ->where('kind', 'image')
+                ->has('items', 1)
+                ->where('items.0.id', $mine->id)
+                ->where('items.0.ready', true));
+    }
+
+    public function test_library_media_can_be_narrowed_to_items_not_in_an_event(): void
+    {
+        $this->withoutVite();
+        $user = User::factory()->create();
+        $event = Event::factory()->for($user)->create();
+        Media::factory()->for($user)->create(['event_id' => $event->id]);
+        $loose = Media::factory()->for($user)->create();
+
+        $this->actingAs($user)
+            ->get(route('media.photos', ['unfiled' => 1]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('unfiled', true)
+                ->has('items', 1)
+                ->where('items.0.id', $loose->id));
     }
 
     public function test_upload_url_returns_signed_data_scoped_to_user(): void

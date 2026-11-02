@@ -18,7 +18,7 @@ defineProps({
             <p class="tagline">A multi-band waveform player for your audio in the cloud.</p>
 
             <nav v-if="canLogin" class="actions">
-                <Link v-if="$page.props.auth.user" :href="route('tracks.index')">
+                <Link v-if="$page.props.auth.user" :href="route('events.index')">
                     <Button label="Open Band Bootlegs" />
                 </Link>
                 <template v-else>

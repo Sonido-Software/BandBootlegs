@@ -7,6 +7,7 @@ import Message from 'primevue/message';
 import Dialog from 'primevue/dialog';
 import InputText from 'primevue/inputtext';
 import Textarea from 'primevue/textarea';
+import { useNewActions } from '@/lib/newActions';
 
 const props = defineProps({
     collections: { type: Array, required: true },
@@ -19,6 +20,8 @@ const openCreate = () => {
     form.reset();
     showCreate.value = true;
 };
+
+useNewActions({ collection: openCreate });
 
 const submit = () => {
     form.post(route('collections.store'), {

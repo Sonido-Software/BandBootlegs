@@ -99,6 +99,35 @@ class ProfileShareTest extends TestCase
             );
     }
 
+    public function test_track_page_through_profile_token_links_back_to_profile_and_event(): void
+    {
+        $user = User::factory()->create(['name' => 'Sam', 'share_token' => Str::random(32)]);
+        $event = Event::factory()->for($user)->create(['name' => 'Fall Show']);
+        $track = Track::factory()->for($user)->withChannels()->create(['event_id' => $event->id]);
+
+        $this->get(route('profile.shared.track-show', [$user->share_token, $event->id, $track->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('breadcrumbs', 2)
+                ->where('breadcrumbs.0.label', "Sam's events")
+                ->where('breadcrumbs.0.href', route('profile.shared', $user->share_token))
+                ->where('breadcrumbs.1.label', 'Fall Show')
+                ->where('breadcrumbs.1.href', route('profile.shared.event', [$user->share_token, $event->id])));
+    }
+
+    public function test_shared_props_carry_the_public_page_url_only_when_shared(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->get('/profile')
+            ->assertInertia(fn ($page) => $page->where('auth.publicPageUrl', null));
+
+        $user->update(['share_token' => Str::random(32)]);
+
+        $this->actingAs($user)->get('/profile')
+            ->assertInertia(fn ($page) => $page->where('auth.publicPageUrl', route('profile.shared', $user->share_token)));
+    }
+
     public function test_event_page_404s_for_event_owned_by_another_user(): void
     {
         $user = User::factory()->create(['share_token' => Str::random(32)]);

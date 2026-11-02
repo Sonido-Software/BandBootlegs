@@ -64,6 +64,7 @@ class PublicProfileController extends Controller
 
         return Inertia::render('Events/Show', [
             'canEdit' => false,
+            'breadcrumbs' => [$this->profileCrumb($user)],
             'types' => Event::TYPES,
             'assignableTracks' => [],
             'event' => $this->presenter->event($event, EventLinkContext::profileShare($user->share_token, $event)),
@@ -81,6 +82,10 @@ class PublicProfileController extends Controller
 
         return Inertia::render('Tracks/Show', [
             'canEdit' => false,
+            'breadcrumbs' => [
+                $this->profileCrumb($user),
+                ['label' => $event->name, 'href' => route('profile.shared.event', [$user->share_token, $event->id])],
+            ],
             'templates' => [],
             'track' => $this->trackPresenter->show(
                 $track,
@@ -136,5 +141,19 @@ class PublicProfileController extends Controller
         $event->load('media');
 
         return $this->media->zipDownloadResponse($event, $event->name.'.zip');
+    }
+
+    /**
+     * The shared profile as a breadcrumb parent, labelled the way the profile
+     * page titles itself ("Sam's events").
+     *
+     * @return array{label: string, href: string}
+     */
+    private function profileCrumb(User $user): array
+    {
+        $name = trim($user->name);
+        $label = $name === '' ? 'Events' : (preg_match('/s$/i', $name) ? "{$name}' events" : "{$name}'s events");
+
+        return ['label' => $label, 'href' => route('profile.shared', $user->share_token)];
     }
 }

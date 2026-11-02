@@ -63,6 +63,15 @@ This project runs under **ddev** (PHP 8.4, Node 24, PostgreSQL 18). Run tooling
 - Keep controllers thin; storage/IO logic lives in the `Services`.
 - New Inertia pages go under `resources/js/Pages/<Area>/`; shared public pages
   render under `PublicLayout`, authenticated ones under `AuthenticatedLayout`.
+- Navigation: Events (home after login), Library (`/tracks`, `/videos`,
+  `/photos` behind `LibraryTabs`), Collections. Detail pages get a
+  `breadcrumbs` prop from their controller (parents only, following the data,
+  not the URL) and pass it to the layout; phones turn the last one into the
+  back link.
+- The layout's global "+ New" menu reaches page upload code through
+  `resources/js/lib/newActions.js`: a page that can take uploads calls
+  `useNewActions({...})`, and picks made elsewhere are stashed and replayed on
+  the page that can.
 
 ## Git
 

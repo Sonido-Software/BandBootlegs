@@ -90,12 +90,6 @@ Route::get('/', function () {
     ]);
 });
 
-// Throwaway sync test — used to evaluate whether N parallel <audio> elements
-// stay locked tightly enough for the per-channel mixer to drive each channel
-// as its own stream instead of a single multi-channel file. Delete once we
-// have data.
-Route::get('/sync-test', fn () => Inertia::render('SyncTest'))->middleware('auth')->name('sync-test');
-
 Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -163,6 +157,7 @@ Route::middleware('auth')->group(function () {
     // Media — photos and videos. Literal upload/multipart routes are declared
     // before the /media/{media} wildcards so they win the match.
     Route::get('/videos', [MediaController::class, 'index'])->name('media.index');
+    Route::get('/photos', [MediaController::class, 'photos'])->name('media.photos');
     Route::post('/media/upload-url', [MediaController::class, 'uploadUrl'])->name('media.upload-url');
     Route::put('/media/upload', [MediaController::class, 'uploadPut'])->middleware('signed')->name('media.upload-put');
     Route::post('/media/multipart', [MediaController::class, 'createMultipart'])->name('media.multipart.create');

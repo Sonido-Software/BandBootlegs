@@ -13,6 +13,7 @@ import Select from 'primevue/select';
 import DatePicker from 'primevue/datepicker';
 import MultiSelect from 'primevue/multiselect';
 import ProgressBar from 'primevue/progressbar';
+import Menu from 'primevue/menu';
 import Toast from 'primevue/toast';
 import { useToast } from 'primevue/usetoast';
 import ConfirmDialog from 'primevue/confirmdialog';
@@ -27,12 +28,14 @@ import SplitBeforeUploadDialog from '@/Components/SplitBeforeUploadDialog.vue';
 import StitchedSplitDialog from '@/Components/StitchedSplitDialog.vue';
 import QrPosterDialog from '@/Components/QrPosterDialog.vue';
 import AddToCollectionMenu from '@/Components/AddToCollectionMenu.vue';
+import { useNewActions } from '@/lib/newActions';
 
 const props = defineProps({
     event: { type: Object, required: true },
     types: { type: Array, default: () => [] },
     assignableTracks: { type: Array, default: () => [] },
     canEdit: { type: Boolean, default: true },
+    breadcrumbs: { type: Array, default: () => [] },
 });
 
 const mediaDownloadAllUrl = computed(() => props.event.media_download_all_url ?? null);
@@ -125,6 +128,20 @@ const unshare = async () => {
     if (res.ok) { shareUrl.value = null; toast.add({ severity: 'info', summary: 'Sharing disabled', life: 2500 }); }
 };
 
+// The header keeps one share button and one overflow; the rest live in menus
+// so the row fits on a phone.
+const shareMenu = ref(null);
+const shareMenuItems = computed(() => [
+    { label: 'Copy link', icon: 'pi pi-copy', command: copyShare },
+    { separator: true },
+    { label: 'Stop sharing', icon: 'pi pi-times', command: unshare },
+]);
+const moreMenu = ref(null);
+const moreMenuItems = [
+    { label: 'Edit event', icon: 'pi pi-pencil', command: () => { showEdit.value = true; } },
+    { label: 'Delete event', icon: 'pi pi-trash', class: 'menu-danger', command: () => confirmDeleteEvent() },
+];
+
 // --- Assigning tracks --------------------------------------------------------
 const showAddTracks = ref(false);
 const selectedTrackIds = ref([]);
@@ -178,6 +195,10 @@ const pickMedia = () => mediaInput.value?.click();
 const onMediaSelected = (event) => {
     const files = Array.from(event.target.files || []);
     event.target.value = '';
+    uploadMediaFiles(files);
+};
+const uploadMediaFiles = (files) => {
+    section.value = 'media';
     addFiles(files);
 };
 
@@ -235,6 +256,10 @@ const pickTrack = () => trackInput.value?.click();
 const onTrackSelected = (event) => {
     const files = Array.from(event.target.files || []);
     event.target.value = '';
+    uploadTrackFiles(files);
+};
+const uploadTrackFiles = (files) => {
+    section.value = 'tracks';
     for (const file of files) enqueueTrackWithSplit(file);
 };
 
@@ -253,6 +278,10 @@ const pickStitchedTracks = () => stitchedTrackInput.value?.click();
 const onStitchedTracksSelected = (event) => {
     const files = Array.from(event.target.files || []);
     event.target.value = '';
+    stitchTrackFiles(files);
+};
+const stitchTrackFiles = (files) => {
+    section.value = 'tracks';
     if (files.length < 2) {
         toast?.add({ severity: 'warn', summary: 'Pick multiple files', detail: 'Select two or more WAV files to stitch and split.', life: 4000 });
         return;
@@ -264,6 +293,30 @@ const onStitchedTracksSelected = (event) => {
         }
     }
     openTrackStitchedSplit(files);
+};
+
+// "+ New" picks made on this page land in this event.
+if (props.canEdit) {
+    useNewActions(
+        { tracks: uploadTrackFiles, stitch: stitchTrackFiles, media: uploadMediaFiles },
+        { target: props.event.name },
+    );
+}
+
+// --- Sections ----------------------------------------------------------------
+// Desktop stacks the sections with a sticky jump bar; phones show one at a time
+// as tabs. `section` drives the phone tabs; on desktop the bar just scrolls.
+const section = ref('tracks');
+const sectionTabs = computed(() => [
+    { key: 'tracks', label: 'Tracks', count: tracks.value.length },
+    { key: 'media', label: 'Photos & videos', count: media.value.length },
+    ...(props.canEdit ? [{ key: 'invite', label: 'Collect uploads', count: null }] : []),
+]);
+const goSection = (key) => {
+    section.value = key;
+    if (!window.matchMedia('(max-width: 640px)').matches) {
+        document.getElementById(`section-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
 };
 
 const confirmDeleteMedia = (item) => confirm.require({
@@ -392,7 +445,7 @@ const rotateVideo = (direction) => {
         :event-name="event.name"
         :label="qrInvite?.label"
     />
-    <component :is="Layout">
+    <component :is="Layout" :breadcrumbs="breadcrumbs">
         <template #header>
             <div class="header">
                 <div class="title-block">
@@ -408,11 +461,11 @@ const rotateVideo = (direction) => {
                     </div>
                 </div>
                 <div v-if="canEdit" class="actions">
-                    <Button v-if="shareUrl" icon="pi pi-copy" label="Copy link" severity="secondary" @click="copyShare" />
-                    <Button :icon="shareUrl ? 'pi pi-share-alt' : 'pi pi-share-alt'" :label="shareUrl ? 'Shared' : 'Share'" :severity="shareUrl ? 'success' : 'secondary'" outlined @click="share" />
-                    <Button v-if="shareUrl" icon="pi pi-times" severity="secondary" text rounded aria-label="Stop sharing" @click="unshare" />
-                    <Button icon="pi pi-pencil" severity="secondary" text rounded aria-label="Edit event" @click="showEdit = true" />
-                    <Button icon="pi pi-trash" severity="danger" text rounded aria-label="Delete event" @click="confirmDeleteEvent" />
+                    <Button v-if="shareUrl" icon="pi pi-chevron-down" iconPos="right" label="Shared" severity="success" outlined aria-haspopup="true" @click="(e) => shareMenu.toggle(e)" />
+                    <Button v-else icon="pi pi-share-alt" label="Share" severity="secondary" outlined @click="share" />
+                    <Menu ref="shareMenu" :model="shareMenuItems" :popup="true" />
+                    <Button icon="pi pi-ellipsis-v" severity="secondary" text rounded aria-label="More actions" aria-haspopup="true" @click="(e) => moreMenu.toggle(e)" />
+                    <Menu ref="moreMenu" :model="moreMenuItems" :popup="true" />
                 </div>
             </div>
         </template>
@@ -420,8 +473,21 @@ const rotateVideo = (direction) => {
         <div class="stack">
             <p v-if="event.description" class="description">{{ event.description }}</p>
 
+            <nav class="section-tabs" aria-label="Event sections">
+                <button
+                    v-for="t in sectionTabs"
+                    :key="t.key"
+                    type="button"
+                    class="section-tab"
+                    :class="{ on: section === t.key }"
+                    @click="goSection(t.key)"
+                >
+                    {{ t.label }} <span v-if="t.count != null" class="tab-count">{{ t.count }}</span>
+                </button>
+            </nav>
+
             <!-- Tracks -->
-            <section>
+            <section id="section-tracks" class="event-section" :class="{ 'tab-off': section !== 'tracks' }">
                 <div class="section-head">
                     <h3>Tracks</h3>
                     <template v-if="canEdit">
@@ -472,7 +538,7 @@ const rotateVideo = (direction) => {
             </section>
 
             <!-- Media -->
-            <section>
+            <section id="section-media" class="event-section" :class="{ 'tab-off': section !== 'media' }">
                 <div class="section-head">
                     <h3>Photos &amp; videos <span v-if="media.length" class="count-badge">{{ media.length }}</span></h3>
                     <!-- Hidden file picker; the visible "Upload media" button lives below. -->
@@ -525,7 +591,7 @@ const rotateVideo = (direction) => {
             </section>
 
             <!-- Collect uploads — anonymous contribution links (owner only) -->
-            <section v-if="canEdit">
+            <section v-if="canEdit" id="section-invite" class="event-section" :class="{ 'tab-off': section !== 'invite' }">
                 <div class="section-head">
                     <h3>Collect uploads</h3>
                 </div>
@@ -640,6 +706,19 @@ const rotateVideo = (direction) => {
 .summary { display: flex; align-items: center; flex-wrap: wrap; gap: 1.1rem; margin-top: 0.5rem; font-size: 0.85rem; color: var(--p-text-muted-color); }
 .summary i { margin-right: 0.3rem; }
 .actions { display: flex; align-items: center; gap: 0.4rem; }
+/* Popup menus are teleported to <body>, outside this scope. */
+:global(.menu-danger .p-menu-item-label), :global(.menu-danger .p-menu-item-icon) { color: var(--p-red-500); }
+.section-tabs { position: sticky; top: 0; z-index: 5; display: flex; gap: 0.25rem; padding: 0.4rem 0; background: var(--p-surface-50); border-bottom: 1px solid var(--p-content-border-color); overflow-x: auto; }
+.section-tab { flex: none; background: none; border: 0; border-bottom: 2px solid transparent; padding: 0.45rem 0.75rem; font: inherit; font-weight: 600; font-size: 0.9rem; color: var(--p-text-muted-color); cursor: pointer; }
+.section-tab:hover { color: var(--p-text-color); }
+.section-tab.on { color: var(--p-primary-color); border-bottom-color: var(--p-primary-color); }
+.tab-count { font-size: 0.75rem; font-weight: 600; color: var(--p-text-muted-color); }
+.event-section { scroll-margin-top: 3.5rem; }
+@media (max-width: 640px) {
+    .tab-off { display: none; }
+    .section-tab { flex: 1; padding: 0.5rem 0.25rem; font-size: 0.85rem; }
+    .stack { gap: 1rem; }
+}
 .stack { display: flex; flex-direction: column; gap: 2rem; }
 .description { margin: 0; white-space: pre-wrap; color: var(--p-text-color); }
 .section-head { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }

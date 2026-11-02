@@ -10,6 +10,7 @@ import Textarea from 'primevue/textarea';
 import Select from 'primevue/select';
 import DatePicker from 'primevue/datepicker';
 import { typeLabel, typeOptions } from '@/lib/eventTypes';
+import { useNewActions } from '@/lib/newActions';
 
 const props = defineProps({
     events: { type: Array, required: true },
@@ -32,6 +33,8 @@ const openCreate = () => {
     form.type = 'live_show';
     showCreate.value = true;
 };
+
+useNewActions({ event: openCreate });
 
 const submit = () => {
     form
